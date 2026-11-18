@@ -1,0 +1,26 @@
+# Phase 1 configuration. Every modelling assumption lives here so it is visible and reviewable.
+portfolio:
+  value: 1000000            # USD
+  weights:                  # constant weights (implicit daily rebalancing)
+    SPY: 0.40
+    QQQ: 0.30
+    TLT: 0.20
+    GLD: 0.10
+
+data:
+  source: yfinance
+  auto_adjust: true         # adjusted close = total-return series (dividends reinvested)
+  start: "2006-01-01"
+  end: "2025-12-31"         # inclusive; fixed end date for reproducibility
+  cache_path: data/raw/prices.csv
+
+quality:
+  stale_run_days: 5         # flag >= N consecutive identical prices
+  extreme_return_abs: 0.15  # flag |simple daily return| above this (flagged, never removed)
+  max_calendar_gap_days: 5  # flag gaps between consecutive dates longer than this
+
+risk:
+  confidence_levels: [0.95, 0.99]
+  horizon_days: 1
+  quantile_method: linear   # numpy quantile interpolation for historical VaR
+  normal_include_mean: true # Normal VaR uses the sample mean; set false for mu = 0

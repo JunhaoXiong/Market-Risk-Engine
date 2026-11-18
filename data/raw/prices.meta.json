@@ -1,0 +1,18 @@
+{
+  "source": "yfinance",
+  "yfinance_version": "1.8.0",
+  "auto_adjust": true,
+  "requested_start": "2006-01-01",
+  "requested_end_inclusive": "2025-12-31",
+  "downloaded_at_utc": "2026-11-18T04:20:10+00:00",
+  "rows": 5031,
+  "columns": [
+    "SPY",
+    "QQQ",
+    "TLT",
+    "GLD"
+  ],
+  "first_date": "2006-01-03",
+  "last_date": "2025-12-31",
+  "sha256": "b215dc92bf3193452cb2c708c981f6f47e15f6c051cb7e167ce8407c0c9430b1"
+}
