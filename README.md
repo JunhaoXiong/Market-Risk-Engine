@@ -3,13 +3,13 @@
 A reproducible Python engine for measuring and validating market risk on a
 multi-asset ETF portfolio (SPY 40%, QQQ 30%, TLT 20%, GLD 10%, $1,000,000).
 
-> Work in progress. Phase 1 (data pipeline + static VaR/ES) is complete.
+> Work in progress. Phases 1-2 are complete.
 
 ## Roadmap
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Data pipeline, data quality checks, portfolio returns, Historical / Normal VaR & ES | done |
-| 2 | EWMA, GARCH, covariance shrinkage | planned |
+| 2 | EWMA (MLE lambda), GARCH(1,1)-t vs Normal, Ledoit-Wolf shrinkage | done |
 | 3 | Rolling backtesting, Kupiec, Christoffersen tests | planned |
 | 4 | Stress testing, risk attribution | planned |
 | 5 | Portfolio optimisation | planned |
@@ -21,6 +21,7 @@ pip install -e ".[dev]"
 pytest                          # unit tests (offline, synthetic data)
 python scripts/run_phase1.py    # uses data/raw/prices.csv snapshot
 python scripts/run_phase1.py --refresh   # re-download from Yahoo Finance
+python scripts/run_phase2.py    # volatility models on the last 1,000-day window
 ```
 
 ## Key assumptions (all in `config.yaml`)
@@ -32,6 +33,9 @@ python scripts/run_phase1.py --refresh   # re-download from Yahoo Finance
 - **Sign convention**: VaR and ES are reported as positive losses.
   `VaR_a = -q_{1-a}(P&L)`, `ES_a = -E[P&L | P&L <= -VaR_a]`.
 - **Horizon**: 1 day.
+- **Volatility models**: rolling 1,000-day estimation window; GARCH(1,1) with Student-t
+  innovations is primary, Normal GARCH is the benchmark; EWMA lambda is chosen by Gaussian
+  MLE inside the window only; Ledoit-Wolf shrinkage with identity and constant-correlation targets.
 - **Data quality**: issues are reported, never silently fixed; no forward-filling;
   extreme returns are flagged but kept.
 
@@ -41,6 +45,7 @@ config.yaml            all modelling parameters
 src/mre/data/          download + cache (loader.py), quality checks (quality.py)
 src/mre/portfolio.py   asset and portfolio returns, P&L
 src/mre/risk/var.py    Historical / Normal VaR and ES
+src/mre/models/        ewma.py, garch.py, shrinkage.py
 scripts/run_phase1.py  end-to-end Phase 1 pipeline
 reports/               generated reports
 tests/                 pytest suite

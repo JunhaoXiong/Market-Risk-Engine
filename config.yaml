@@ -24,3 +24,9 @@ risk:
   horizon_days: 1
   quantile_method: linear   # numpy quantile interpolation for historical VaR
   normal_include_mean: true # Normal VaR uses the sample mean; set false for mu = 0
+
+models:
+  estimation_window: 1000   # rolling window (trading days) for EWMA / GARCH / shrinkage
+  ewma_burn_in: 30          # returns used only to seed the EWMA recursion
+  garch_primary_dist: t     # Student-t innovations (primary)
+  garch_benchmark_dist: normal
