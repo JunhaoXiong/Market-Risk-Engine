@@ -25,6 +25,10 @@ class Config:
     horizon_days: int
     quantile_method: str
     normal_include_mean: bool
+    estimation_window: int = 1000
+    ewma_burn_in: int = 30
+    garch_primary_dist: str = "t"
+    garch_benchmark_dist: str = "normal"
     raw: dict = field(default_factory=dict, repr=False)
 
     @property
@@ -63,5 +67,9 @@ def load_config(path: str | Path = PROJECT_ROOT / "config.yaml") -> Config:
         horizon_days=int(raw["risk"]["horizon_days"]),
         quantile_method=str(raw["risk"]["quantile_method"]),
         normal_include_mean=bool(raw["risk"]["normal_include_mean"]),
+        estimation_window=int(raw.get("models", {}).get("estimation_window", 1000)),
+        ewma_burn_in=int(raw.get("models", {}).get("ewma_burn_in", 30)),
+        garch_primary_dist=str(raw.get("models", {}).get("garch_primary_dist", "t")),
+        garch_benchmark_dist=str(raw.get("models", {}).get("garch_benchmark_dist", "normal")),
         raw=raw,
     )
