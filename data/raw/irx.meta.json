@@ -1,0 +1,14 @@
+{
+  "source": "yfinance",
+  "ticker": "^IRX",
+  "yfinance_version": "1.8.0",
+  "units": "percent, discount basis",
+  "downloaded_at_utc": "2026-11-18T05:43:35+00:00",
+  "rows": 5028,
+  "columns": [
+    "rate_pct"
+  ],
+  "first_date": "2006-01-03",
+  "last_date": "2025-12-31",
+  "sha256": "319aeefd735c3f1e5f8f28084c941a813899d3d5a684e01bda1f75d9c716b02c"
+}
