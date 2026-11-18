@@ -103,26 +103,27 @@ def ewma_covariance(R, lam: float, burn_in: int = 30) -> tuple[np.ndarray, np.nd
     if T <= burn_in:
         raise ValueError("need more observations than burn_in")
     out = np.full((T, N, N), np.nan)
-    S = R[:burn_in].T @ R[:burn_in] / burn_in
-    for t in range(burn_in, T):
-        out[t] = S
-        x = R[t][:, None]
-        S = lam * S + (1.0 - lam) * (x @ x.T)
-    return out, S
+    S0 = R[:burn_in].T @ R[:burn_in] / burn_in
+    # the recursion is linear and element-wise in the outer products, so filter all
+    # N x N series at once: Y[n] = lam * Y[n-1] + (1 - lam) * x_n x_n',  Y[-1] = S0
+    outer = np.einsum("ti,tj->tij", R[burn_in:], R[burn_in:])
+    Y, _ = lfilter([1.0 - lam], [1.0, -lam], outer, axis=0, zi=(lam * S0)[None, :, :])
+    out[burn_in] = S0
+    out[burn_in + 1:] = Y[:-1]
+    return out, Y[-1]
 
 
 def ewma_cov_neg_loglik(lam: float, R, burn_in: int = 30) -> float:
     R = _arr(R)
     sig, _ = ewma_covariance(R, lam, burn_in)
-    nll = 0.0
     N = R.shape[1]
-    for t in range(burn_in, R.shape[0]):
-        sign, logdet = np.linalg.slogdet(sig[t])
-        if sign <= 0:
-            return np.inf
-        x = R[t]
-        nll += 0.5 * (N * np.log(2 * np.pi) + logdet + x @ np.linalg.solve(sig[t], x))
-    return float(nll)
+    S = sig[burn_in:]
+    X = R[burn_in:]
+    sign, logdet = np.linalg.slogdet(S)
+    if (sign <= 0).any():
+        return np.inf
+    quad = np.einsum("ti,ti->t", X, np.linalg.solve(S, X[:, :, None])[:, :, 0])
+    return float(0.5 * np.sum(N * np.log(2 * np.pi) + logdet + quad))
 
 
 def fit_ewma_cov_lambda(R, burn_in: int = 30, bounds=LAMBDA_BOUNDS) -> tuple[EWMAFit, np.ndarray]:

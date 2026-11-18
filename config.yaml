@@ -62,3 +62,16 @@ stress:
 attribution:
   covariance_primary: ewma       # EWMA with MLE lambda on the estimation window, zero mean
   rolling_lambda: 0.94           # fixed RiskMetrics lambda for the 2006-2025 contribution path
+
+optimization:
+  cash_rate_cache: data/raw/irx.csv   # 13-week T-bill (^IRX), used for cash return and Sharpe
+  upper_bound: 0.60                   # max weight per asset
+  cost_bps: 5                         # one-way transaction cost
+  window: 500                         # trailing window for LW / CVaR / lambda MLE
+  lambda_refit_every: 21              # multivariate EWMA lambda re-estimated every 21 days
+  vol_target: 0.10                    # annualised; primary
+  vol_target_sensitivity: [0.08, 0.12]
+  threshold: 0.05                     # rebalance when any |target - held| > 5pp; primary
+  threshold_sensitivity: [0.025, 0.10]
+  calendar_rebalance_every: 21        # comparison: fixed monthly rebalancing
+  cvar_alpha: 0.95                    # optimise CVaR at 95% (99% has ~5 tail days in 500)

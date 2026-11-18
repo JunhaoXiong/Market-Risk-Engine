@@ -121,3 +121,33 @@ def get_prices(
     if missing:
         raise ValueError(f"Cached file lacks tickers {missing}; rerun with refresh=True.")
     return prices[tickers]
+
+
+def get_cash_rate(
+    start: str, end_inclusive: str, cache_path: str | Path, ticker: str = "^IRX", refresh: bool = False,
+) -> pd.Series:
+    """13-week US T-bill rate (annualised, in decimal) from Yahoo's ^IRX index.
+
+    ^IRX is quoted in percent on a discount basis; we use rate/100 as an
+    approximation of the money-market yield. Cached like the price snapshot.
+    """
+    cache_path = Path(cache_path)
+    if refresh or not cache_path.exists():
+        import yfinance as yf
+
+        raw = yf.download(ticker, start=start,
+                          end=(pd.Timestamp(end_inclusive) + pd.Timedelta(days=1)).strftime("%Y-%m-%d"),
+                          auto_adjust=False, progress=False, threads=False)
+        if raw is None or raw.empty:
+            raise RuntimeError(f"No data returned for {ticker}")
+        close = raw["Close"]
+        if isinstance(close, pd.DataFrame):
+            close = close.iloc[:, 0]
+        frame = close.rename("rate_pct").to_frame()
+        frame.index = pd.DatetimeIndex(frame.index).tz_localize(None).normalize()
+        frame.index.name = "Date"
+        save_prices(frame, cache_path, {"source": "yfinance", "ticker": ticker,
+                                        "yfinance_version": getattr(yf, "__version__", "unknown"),
+                                        "units": "percent, discount basis"})
+    df = load_prices(cache_path)
+    return (df["rate_pct"] / 100.0).rename("cash_rate")

@@ -19,6 +19,7 @@ garch_normal refits the conditional variance is updated daily with fixed params:
 
 from __future__ import annotations
 
+import multiprocessing as mp
 import os
 import warnings
 from concurrent.futures import ProcessPoolExecutor
@@ -110,7 +111,7 @@ def rolling_forecasts(
             continue
         jobs = [(r[t - window:t], dist) for t in refits]
         if n_jobs > 1 and len(jobs) > 1:
-            with ProcessPoolExecutor(max_workers=n_jobs) as ex:
+            with ProcessPoolExecutor(max_workers=n_jobs, mp_context=mp.get_context("spawn")) as ex:
                 fits = list(ex.map(_fit_garch_quiet, jobs, chunksize=8))
         else:
             fits = [_fit_garch_quiet(j) for j in jobs]
