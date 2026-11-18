@@ -10,7 +10,8 @@ def test_default_config_loads():
     assert cfg.portfolio_value == 1_000_000
     assert cfg.confidence_levels == (0.95, 0.99)
     assert cfg.cache_path.is_absolute()
-    assert cfg.estimation_window == 1000
+    assert cfg.estimation_window == 500
+    assert cfg.refit_every == 21 and cfg.significance == (0.05, 0.01)
     assert cfg.garch_primary_dist == "t"
 
 

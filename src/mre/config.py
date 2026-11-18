@@ -29,6 +29,11 @@ class Config:
     ewma_burn_in: int = 30
     garch_primary_dist: str = "t"
     garch_benchmark_dist: str = "normal"
+    oos_start_index: int = 1000
+    refit_every: int = 21
+    sensitivity_windows: tuple[int, ...] = (250, 1000)
+    sensitivity_refit_every: int = 1
+    significance: tuple[float, ...] = (0.05, 0.01)
     raw: dict = field(default_factory=dict, repr=False)
 
     @property
@@ -71,5 +76,10 @@ def load_config(path: str | Path = PROJECT_ROOT / "config.yaml") -> Config:
         ewma_burn_in=int(raw.get("models", {}).get("ewma_burn_in", 30)),
         garch_primary_dist=str(raw.get("models", {}).get("garch_primary_dist", "t")),
         garch_benchmark_dist=str(raw.get("models", {}).get("garch_benchmark_dist", "normal")),
+        oos_start_index=int(raw.get("backtest", {}).get("oos_start_index", 1000)),
+        refit_every=int(raw.get("backtest", {}).get("refit_every", 21)),
+        sensitivity_windows=tuple(int(x) for x in raw.get("backtest", {}).get("sensitivity_windows", [250, 1000])),
+        sensitivity_refit_every=int(raw.get("backtest", {}).get("sensitivity_refit_every", 1)),
+        significance=tuple(float(x) for x in raw.get("backtest", {}).get("significance", [0.05, 0.01])),
         raw=raw,
     )

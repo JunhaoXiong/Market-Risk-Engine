@@ -27,6 +27,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from scipy.optimize import minimize_scalar
+from scipy.signal import lfilter
 
 LAMBDA_BOUNDS = (0.80, 0.9995)
 
@@ -49,12 +50,12 @@ def ewma_variance(r, lam: float, burn_in: int = 30) -> tuple[np.ndarray, float]:
     if r.size <= burn_in:
         raise ValueError("need more observations than burn_in")
     sigma2 = np.full(r.size, np.nan)
-    s = float(np.mean(r[:burn_in] ** 2))
-    for t in range(burn_in, r.size):
-        # s currently holds information up to t-1
-        sigma2[t] = s
-        s = lam * s + (1.0 - lam) * r[t] ** 2
-    return sigma2, s
+    s0 = float(np.mean(r[:burn_in] ** 2))
+    # y[n] = lam * y[n-1] + (1 - lam) * r[burn_in + n]^2, with y[-1] = s0  (vectorised recursion)
+    y, _ = lfilter([1.0 - lam], [1.0, -lam], r[burn_in:] ** 2, zi=[lam * s0])
+    sigma2[burn_in] = s0
+    sigma2[burn_in + 1:] = y[:-1]
+    return sigma2, float(y[-1])
 
 
 def ewma_neg_loglik(lam: float, r, burn_in: int = 30) -> float:
