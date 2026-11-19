@@ -6,3 +6,7 @@ yfinance>=0.2.40
 tabulate>=0.9
 arch>=6.0
 pytest>=7.0
+# dashboard and figures
+streamlit>=1.40
+plotly>=5.20
+matplotlib>=3.8
