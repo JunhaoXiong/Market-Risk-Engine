@@ -53,6 +53,12 @@ def main() -> None:
         row["largest loss from"] = pd.Series(bh.contributions).idxmin()
         hist_rows.append(row)
     hist = pd.DataFrame(hist_rows)
+    raw_hist = pd.DataFrame([{
+        "scenario": sc["name"], "start": sc["start"], "end": sc["end"],
+        "buy_and_hold": historical_scenario(prices, w, sc["start"], sc["end"], V, sc["name"], st["method_primary"]).portfolio_return,
+        "rebalanced": historical_scenario(prices, w, sc["start"], sc["end"], V, sc["name"], st["method_benchmark"]).portfolio_return,
+    } for sc in st["historical"]])
+    raw_hist.to_csv(PROJECT_ROOT / "reports" / "phase4_historical_scenarios.csv", index=False)
 
     # ---------------- hypothetical
     hyp_rows = []

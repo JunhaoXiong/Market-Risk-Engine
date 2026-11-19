@@ -96,6 +96,8 @@ def main() -> None:
     table = pd.DataFrame({k: stats(v.returns, rf_oos, v) for k, v in runs.items()}).T
     out = PROJECT_ROOT / "reports"
     table.to_csv(out / "phase5_results.csv")
+    pd.DataFrame({k: v.returns for k, v in runs.items()}).to_csv(
+        out / "phase5_strategy_returns.csv.gz", float_format="%.8g")
     prim = runs[next(iter(runs))]
     pd.concat({"weights": prim.weights, "targets": prim.targets}, axis=1).assign(
         cash=prim.cash, turnover=prim.turnover, net=prim.returns).to_csv(
