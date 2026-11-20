@@ -22,7 +22,8 @@ this is stated explicitly.
 | Overall rating | **Fit for purpose, with a monitoring condition.** FHS-GJR has 47 violations at 99% (40.3 expected) and 201 at 95% (201.5 expected). It is the only model that passes Kupiec, independence and conditional coverage at both levels, and its ES ratio is 0.99. The condition: the model and window were chosen after seeing the out-of-sample results (section 6.5), so the result has to be confirmed on new data. |
 | Main finding | The original GARCH-t failed at 99% (73 violations) and over-violated at 95% (6.3%) because the portfolio's left tail is skewed, not because volatility reacted too slowly. Adding skewness fixes most of the gap; adding a leverage effect alone does not. |
 | Regulatory view | On rolling 250-day windows FHS-GJR is green in 80.6% of windows and never red (GARCH-t: 48.7% green, 0.4% red). The latest window (2025) is green with 4 exceptions; it was yellow for every Phase 3 model. |
-| Recommendations | (1) Monitor FHS-GJR on new data and keep GJR-skew-t and GARCH-t running as challengers; (2) add a formal ES backtest (Acerbi-Szekely Z2); (3) re-run the model comparison once a year. |
+| Challenger (Phase 3c) | **DCC-EVT** (GJR-t marginals per asset, DCC(1,1) correlations, GPD tail on the portfolio residuals, W = 1,000) has 39 violations at 99% (40.3 expected) and passes every test, but it is **not** adopted: the gap to FHS-GJR (47) is within multiple-testing noise and both pass. It runs as a monitored challenger with promotion rules fixed in advance (sections 6.6 and 12). |
+| Recommendations | (1) Monitor FHS-GJR on new data with DCC-EVT, GJR-skew-t and GARCH-t as challengers, using the pre-specified promotion rules in section 12; (2) add a formal ES backtest (Acerbi-Szekely Z2); (3) re-run the model comparison once a year. |
 
 ---
 
@@ -255,6 +256,62 @@ proves unstable.
 - *99% clustering is not fully gone at W = 500* (independence p = 0.037).
 These are why the rating carries a monitoring condition (section 12).
 
+### 6.6 Challenger models: conditional EVT and DCC-GARCH (Phase 3c)
+
+Source: `reports/phase3c_report.md`, `scripts/run_phase3c.py`. Same 4,030 out-of-sample days,
+refit every 21 days, Kupiec / Christoffersen / ES ratio as above.
+
+**What was tried, and why.** After Phase 3b the remaining 99% misses were attributed to two
+things: jump days (e.g. March 2020) and correlation breaks (the 2022 stock-bond sell-off). Two
+extensions target those directly:
+- *FHS-EVT* (McNeil & Frey 2000): the FHS-GJR filter and residual pool, with the left tail of
+  the pool replaced by a Generalised Pareto distribution above the 90% quantile (85% / 95% as
+  sensitivity), refitted daily by MLE with xi in [-0.5, 0.9]. Targets tail extrapolation.
+- *DCC-GARCH(1,1)* (Engle 2002): GJR-t marginals per asset, correlation targeting, (a, b) by
+  two-step quasi-ML; portfolio sigma_p^2 = w'D R D w, with a Normal, FHS or EVT portfolio tail.
+  Targets correlation shifts. A *CCC* ablation (a = b = 0) separates "model each asset's
+  volatility" from "let correlations move".
+
+**Results (99% VaR, expected 40.3 violations).**
+
+| Model | W=500 viol. | CC p | W=1000 viol. | Kupiec / Ind. / CC p (W=1000) | ES ratio | Basel green (W=1000) | Avg 99% VaR (W=1000) |
+|---|---:|---:|---:|---|---:|---:|---:|
+| FHS-GJR (primary) | 53 | 0.018 | 47 | 0.301 / 0.124 / 0.179 | 0.99 | 80.6% | $19,687 |
+| FHS-EVT (u=90%) | 53 | 0.018 | 47 | 0.301 / 0.124 / 0.179 | 0.98 | - | $19,808 |
+| DCC-Normal | 87 | 9e-10 | 88 | rejected | 1.12 | - | $16,283 |
+| DCC-FHS | 50 | 0.123 | 46 | 0.378 / 0.555 / 0.568 | 1.00 | 81.7% | $19,431 |
+| CCC-EVT (u=90%) | 47 | 0.502 | 38 | 0.713 / 0.395 / 0.651 | 1.04 | 93.9% | $19,848 |
+| **DCC-EVT (u=90%)** | **45** | **0.629** | **39** | **0.836 / 0.383 / 0.669** | 1.03 | 89.3% | $19,966 |
+
+DCC-EVT also passes all tests at 95% (199 violations, 201.5 expected) and at every threshold
+(38-45 violations at 99%). No Basel window of any of these models is red.
+
+**What the results say.**
+1. *EVT on the univariate pool changes nothing.* The GPD shape xi has a median near 0 after
+   GJR-t filtering (exponential-type tail), so the GPD quantile is close to the empirical one.
+2. *The gain does not come from correlation dynamics.* CCC-EVT (constant correlation) is as good
+   as DCC-EVT. What helps is modelling each asset's volatility separately and fitting the EVT
+   tail on the resulting portfolio residuals. Correlation dynamics alone add little
+   (CCC-FHS 48 vs DCC-FHS 46 at W=1000), and a Normal tail fails whatever the correlation model.
+3. *Correction to the motivating claim.* DCC tracks the SPY-TLT correlation rising from -0.36
+   (2019 mean) to -0.02 (2022 mean), but the primary model had only 2 violations in 2022
+   (expected 2.5). 2022 was not a source of excess misses; the remaining misses are isolated
+   jump days spread across the whole period (2020 is the worst year).
+4. *DCC-EVT removes 11 of FHS-GJR's 47 violation days and adds 3* (W=1000), including
+   2020-03-09 and 2025-04-04. 2020 still has 6 violations against 2.5 expected.
+
+**Decision: FHS-GJR stays primary; DCC-EVT is a monitored challenger.**
+- Both models pass every test, so the data do not reject FHS-GJR. The 8-violation difference is
+  not significant evidence: 11 new variants x 2 windows x 2 levels were compared on the same
+  sample without p-value adjustment, and W = 1,000 was itself chosen after seeing results.
+  Promoting the best of many variants on the same history would repeat the selection problem
+  of section 6.5.
+- DCC-EVT is a heavier model (four marginal fits plus the DCC stage, a daily GPD fit, about
+  3 minutes per backtest) and its ES ratio of 1.03 means slight ES under-estimation on
+  violation days.
+- It costs about $280 (1.4%) more average 99% VaR.
+- Promotion rules are fixed now, before any new data is seen (section 12).
+
 ## 7. Benchmarking and sensitivity analysis
 
 ### 7.1 Estimation window and refit frequency (99% violations, expected 40.3)
@@ -364,8 +421,10 @@ before the run; 8% and 12% are reported as sensitivities.
 
 1. **Single portfolio, single path.** Results are for one four-ETF portfolio over one
    history; there is no cross-sectional or bootstrap evidence of robustness.
-2. **Multiple testing.** Eleven models x two levels x four set-ups produce many p-values; a few
-   passes or rejections near 5% are expected by chance.
+2. **Multiple testing.** Eleven models x two levels x four set-ups in Phase 3b, and eleven more
+   variants x two windows x two levels in Phase 3c, produce many p-values; a few passes or
+   rejections near 5% are expected by chance. This is why the best Phase 3c challenger
+   (DCC-EVT) is not promoted on in-sample evidence.
 3. **Model selected after seeing the results.** The primary FHS-GJR at W = 1,000 was chosen in
    Phase 3b from six candidates and four set-ups using this same out-of-sample period
    (section 6.5); its test results are optimistic until confirmed on new data.
@@ -387,6 +446,7 @@ before the run; 8% and 12% are reported as sensitivities.
 | 4 | Add an ES backtest (Acerbi-Szekely Z2 with simulated critical values) and the Basel ES-based traffic light. | Medium |
 | 5 | Ongoing monitoring: run `run_phase3b.py` / `run_phase6.py` monthly; escalate when the 250-day 99% count reaches 5 (yellow) and trigger a model review at 10 (red). | Medium |
 | 6 | Stress the stock-bond correlation explicitly (e.g. +0.5) in addition to historical periods. | Low |
+| 7 | **Challenger monitoring (Phase 3c), rules fixed on 2026-11-20 before new data.** Run DCC-EVT (W = 1,000, u = 90%) in parallel with FHS-GJR monthly (`run_phase3c.py`). Promote DCC-EVT only after at least 250 new trading days after 2025-12-31 and only if one of these holds: (a) FHS-GJR is in the yellow zone (5+ exceptions in the trailing 250 days) while DCC-EVT is green; or (b) on all post-2025 data FHS-GJR is rejected by Kupiec or conditional coverage at 5% while DCC-EVT is not. Otherwise keep FHS-GJR. Also flag DCC-EVT for review if xi sits on its bound on more than 10% of days or a DCC refit fails. | Medium |
 
 ---
 
@@ -394,11 +454,12 @@ before the run; 8% and 12% are reported as sensitivities.
 
 ```bash
 pip install -e ".[dev,dashboard]"
-pytest                              # 165 tests
+pytest                              # 185 tests
 python scripts/run_phase1.py        # data snapshot, static VaR/ES
 python scripts/run_phase2.py        # volatility and covariance models
 python scripts/run_phase3.py        # rolling backtest (about 1 minute on 4 cores)
 python scripts/run_phase3b.py       # tail models and official var_model forecasts (about 20 minutes)
+python scripts/run_phase3c.py       # challengers: conditional EVT and DCC-GARCH (about 10 minutes)
 python scripts/run_phase4.py        # stress and attribution
 python scripts/run_phase5.py        # allocation walk-forward
 python scripts/run_phase6.py        # Basel traffic light

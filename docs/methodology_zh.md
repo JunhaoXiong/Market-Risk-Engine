@@ -355,6 +355,34 @@ $z_s = (r_s - \mu)/\sigma_s$ 是最近 $W$ 天（$s<t$）的标准化残差。$\
 官方 1 日 VaR/ES 主模型从 GARCH-t（$W=500$）改为 **FHS-GJR**（GJR-GARCH-t 滤波，$W=1000$）。GJR-skew-t（$W=500$）作为参数化备选，GARCH-t 保留为对照。配置见 `config.yaml` 的 `var_model`。理由和证据见 `docs/model_validation_report.md` 第 6.5 节。
 **[审查点]** $W=1000$ 是在看到样本外结果之后选的（Phase 3 的主窗口是事先定的 500）。这是一个事后选择，应当用之后的新数据继续监控。
 
+## 6c. 条件 EVT 与 DCC-GARCH（Phase 3c）
+
+**6c.1 条件 EVT（FHS-EVT，McNeil & Frey 2000）**
+
+沿用 FHS-GJR 的滤波和残差池 $\{z_s\}$（最近 $W$ 天），把损失 $x_s=-z_s$ 的右尾换成广义帕累托分布（GPD，peaks over threshold）。阈值 $u$ 取残差损失的经验分位数 $q_u$（主设定 90%，敏感性 85% / 95%），超出量 $y = x-u \mid x>u$ 服从
+
+$$G_{\xi,\beta}(y) = 1-\left(1+\xi y/\beta\right)^{-1/\xi}$$
+
+设样本量 $n$、超出个数 $N_u$，尾部概率 $p = 1-\alpha \le N_u/n$：
+
+$$\text{VaR}_z(\alpha) = u + \frac{\beta}{\xi}\left[\left(\frac{n p}{N_u}\right)^{-\xi} - 1\right], \qquad \text{ES}_z(\alpha) = \frac{\text{VaR}_z(\alpha) + \beta - \xi u}{1-\xi}$$
+
+（$\xi\to0$ 时 $\text{VaR}_z = u - \beta\ln(np/N_u)$，$\text{ES}_z=\text{VaR}_z+\beta$。）组合 $\text{VaR}_t = -\mu + \sigma_t\,\text{VaR}_z(\alpha)$。GPD 每天随残差池滚动用 MLE 重估。
+**[审查点]** $\xi$ 限制在 $[-0.5, 0.9]$：$\xi>-0.5$ 时 MLE 是正则的（Smith 1985），$\xi<1$ 保证 ES 有限。触及边界的天数在报告中列出。阈值 90% 意味着 $W=500$ 时只有 50 个超出点，$W=1000$ 时 100 个（McNeil–Frey 用 1000 取 100）。$u=95\%$ 时 95% VaR 恰好等于阈值本身。
+
+**6c.2 DCC-GARCH(1,1)（Engle 2002）**
+
+第一步：每个资产单独拟合 GJR-GARCH-t，得到 $\sigma_{i,t}$ 和 $z_{i,t}$。第二步（相关性）：
+
+$$Q_t = (1-a-b)\bar Q + a\,z_{t-1}z_{t-1}' + b\,Q_{t-1}, \qquad R_t = \text{diag}(Q_t)^{-1/2}Q_t\,\text{diag}(Q_t)^{-1/2}$$
+
+$\bar Q$ 取窗口内标准化残差的样本二阶矩（相关性目标法），只估计 $(a,b)$，最大化高斯相关性准似然 $-\tfrac12\sum_t(\ln|R_t| + z_t'R_t^{-1}z_t)$，约束 $a,b\ge0$、$a+b\le0.999$。组合：
+
+$$\sigma^2_{p,t} = w'D_tR_tD_tw,\quad D_t=\text{diag}(\sigma_{i,t}),\qquad \mu_p = w'\mu$$
+
+组合尾部三种：Normal（只看相关性动态的效果）、FHS（组合标准化残差 $z_{p,s}=(r_{p,s}-\mu_p)/\sigma_{p,s}$ 的经验分位数）、EVT（同一残差池上的 GPD）。每 21 天重估边际和 $(a,b)$，其间 $\sigma_{i,t}$ 和 $Q_t$ 每日用固定参数更新。
+**[审查点]** 两步 QML 在 $z$ 非正态时对 $(a,b)$ 仍一致，但标准误不是最有效的；高斯只作为准似然使用，VaR 分位数不依赖正态假设。CCC（$a=b=0$）作为消融对照，用来区分"分资产建模波动率"和"相关性随时间变化"各自的贡献。
+
 ---
 
 ## 7. 压力测试（Phase 4）

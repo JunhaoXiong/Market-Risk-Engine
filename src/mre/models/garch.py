@@ -63,6 +63,8 @@ class GarchFit:
     std_resid: np.ndarray | None = field(default=None, repr=False, compare=False)
     # in-sample standardised residuals (r_t - mu) / sigma_t, oldest first (used by FHS)
     last_sigma2: float = float("nan")  # in-sample variance of the last training day
+    sigma_path: np.ndarray | None = field(default=None, repr=False, compare=False)
+    # in-sample conditional volatility sigma_t for every training day, return units (used by DCC)
 
     @property
     def persistence(self) -> float:
@@ -201,6 +203,7 @@ def fit_garch(r, dist: str = "t", vol: str = "garch") -> GarchFit:
         lam=float(p["lambda"]) if dist == "skewt" else None,
         std_resid=(rs - float(p["mu"])) / cv,
         last_sigma2=float(cv[-1] / SCALE) ** 2,
+        sigma_path=cv / SCALE,
     )
 
 

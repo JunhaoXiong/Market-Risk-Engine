@@ -27,6 +27,12 @@ fhs_gjr      window gives sigma[t]; VaR/ES use the empirical quantile / tail mea
              days s < t, all filtered with the parameters of the latest refit (residuals
              inside the training window come from the fit; later days are filtered
              daily with the same fixed parameters). Only data before t is used.
+
+Phase 3c:
+fhs_evt      conditional EVT (McNeil & Frey 2000): the same GJR-t filter and residual pool
+             as fhs_gjr, but the left tail of the pool is a GPD fitted daily by MLE to the
+             losses above the ``evt_threshold`` empirical quantile (``mre.models.evt``).
+Multivariate DCC-GARCH models live in ``mre.backtest.rolling_dcc``.
 """
 
 from __future__ import annotations
@@ -40,15 +46,18 @@ import numpy as np
 import pandas as pd
 from scipy.stats import norm
 
+from mre.models.evt import fit_pot
 from mre.models.ewma import ewma_variance, fit_ewma_lambda
 from mre.models.garch import GarchFit, fit_garch, standardized_es, standardized_quantile
 from mre.risk.var import historical_es, historical_var
 
 BASE_MODELS = ("historical", "normal", "ewma", "garch_normal", "garch_t")
 TAIL_MODELS = ("garch_skewt", "gjr_t", "gjr_skewt", "egarch_t", "fhs_garch", "fhs_gjr")
-ALL_MODELS = BASE_MODELS + TAIL_MODELS
+EVT_MODELS = ("fhs_evt",)
+ALL_MODELS = BASE_MODELS + TAIL_MODELS + EVT_MODELS
 
-# model -> (variance recursion, innovation law used in the likelihood, FHS?)
+# model -> (variance recursion, innovation law used in the likelihood, residual tail)
+# residual tail: False = parametric, True = empirical (FHS), "evt" = GPD on the FHS pool
 GARCH_SPECS = {
     "garch_normal": ("garch", "normal", False),
     "garch_t": ("garch", "t", False),
@@ -58,6 +67,7 @@ GARCH_SPECS = {
     "egarch_t": ("egarch", "t", False),
     "fhs_garch": ("garch", "t", True),
     "fhs_gjr": ("gjr", "t", True),
+    "fhs_evt": ("gjr", "t", "evt"),
 }
 
 
@@ -81,6 +91,7 @@ def rolling_forecasts(
     models=BASE_MODELS,
     ewma_burn_in: int = 30,
     n_jobs: int | None = None,
+    evt_threshold: float = 0.90,
 ) -> dict[str, pd.DataFrame]:
     """Return {model: DataFrame indexed by forecast date with var_/es_ columns and 'realized'}."""
     r = returns.to_numpy(dtype=float)
@@ -148,7 +159,10 @@ def rolling_forecasts(
         return fit_cache[key]
 
     for m in [m for m in models if m in GARCH_SPECS]:
-        vol, dist, fhs = GARCH_SPECS[m]
+        vol, dist, tail = GARCH_SPECS[m]
+        fhs, evt = bool(tail), tail == "evt"
+        xi = np.full(T, np.nan)
+        xi_bound = np.zeros(T)
         fit_at = fits_for(vol, dist)
         sig = np.empty(T)
         pers = np.empty(T)
@@ -185,9 +199,15 @@ def rolling_forecasts(
                 lam[i] = f.lam
             if fhs:
                 z = np.asarray(z_hist[-window:])
+            if evt:
+                g = fit_pot(-z, evt_threshold)
+                xi[i], xi_bound[i] = g.xi, float(g.at_bound)
             for a in levels:
                 k = int(round(a * 100))
-                if fhs:
+                if evt:
+                    out[m][f"var_{k}"][i] = -f.mu + s * g.var(a)
+                    out[m][f"es_{k}"][i] = -f.mu + s * g.es(a)
+                elif fhs:
                     out[m][f"var_{k}"][i] = -f.mu + s * historical_var(z, a)
                     out[m][f"es_{k}"][i] = -f.mu + s * historical_es(z, a)
                 else:
@@ -204,6 +224,9 @@ def rolling_forecasts(
             out[m]["lam"] = lam
         if vol != "garch":
             out[m]["gamma"] = gam
+        if evt:
+            out[m]["xi"] = xi
+            out[m]["xi_at_bound"] = xi_bound
 
     frames = {}
     for m, d in out.items():
