@@ -141,6 +141,20 @@ Tests: Kupiec POF, Christoffersen independence and conditional coverage; "REJECT
 - W=500: both 40; FHS-GJR only 13 (2011-08-04, 2014-01-24, 2014-04-10, 2015-01-27, 2015-03-25, 2015-08-20, 2015-08-21, 2017-06-09, 2017-11-29, 2019-08-05, 2020-03-09, 2025-02-27, 2025-04-04); DCC-EVT only 5 (2010-04-16, 2011-01-28, 2021-09-28, 2022-01-05, 2024-04-30)
 - W=1000: both 36; FHS-GJR only 11 (2011-08-08, 2011-11-09, 2014-01-24, 2015-01-27, 2015-08-20, 2015-08-21, 2019-08-05, 2020-03-09, 2024-07-17, 2025-02-27, 2025-04-04); DCC-EVT only 3 (2011-01-28, 2017-08-10, 2018-10-04)
 
+## Basel traffic light (99% VaR, rolling 250 days; green 0-4, yellow 5-9, red 10+)
+| model                   |   windows | green   | yellow   | red   |   max exceptions |   last 250d exceptions | last zone   |
+|:------------------------|----------:|:--------|:---------|:------|-----------------:|-----------------------:|:------------|
+| GJR-skew-t, W=500       |      3781 | 72.0%   | 28.0%    | 0.0%  |                8 |                      4 | green       |
+| FHS-GJR, W=500          |      3781 | 76.1%   | 23.9%    | 0.0%  |                8 |                      4 | green       |
+| CCC-EVT (u=90%), W=500  |      3781 | 83.1%   | 16.9%    | 0.0%  |                8 |                      2 | green       |
+| DCC-FHS, W=500          |      3781 | 77.7%   | 22.3%    | 0.0%  |                8 |                      4 | green       |
+| DCC-EVT (u=90%), W=500  |      3781 | 83.7%   | 16.3%    | 0.0%  |                7 |                      2 | green       |
+| GJR-skew-t, W=1000      |      3781 | 67.2%   | 32.8%    | 0.0%  |                8 |                      4 | green       |
+| FHS-GJR, W=1000         |      3781 | 80.6%   | 19.4%    | 0.0%  |                8 |                      4 | green       |
+| CCC-EVT (u=90%), W=1000 |      3781 | 93.9%   | 6.1%     | 0.0%  |                7 |                      2 | green       |
+| DCC-FHS, W=1000         |      3781 | 81.7%   | 18.3%    | 0.0%  |                7 |                      3 | green       |
+| DCC-EVT (u=90%), W=1000 |      3781 | 89.3%   | 10.7%    | 0.0%  |                7 |                      2 | green       |
+
 ## GPD shape xi on the residual pool (daily fits)
 |    W | model           |   xi median |   xi 5% |   xi 95% |   share of days xi at bound |
 |-----:|:----------------|------------:|--------:|---------:|----------------------------:|
@@ -163,7 +177,7 @@ Tests: Kupiec POF, Christoffersen independence and conditional coverage; "REJECT
 |  500.000 |      0.041 |      0.903 |        0.952 |           0.000 |                   -0.359 |                   -0.023 |                       -0.143 |
 | 1000.000 |      0.042 |      0.918 |        0.963 |           0.000 |                   -0.365 |                   -0.032 |                       -0.251 |
 
-Run time (s): W=500: univariate 109, multivariate 159, W=1000: univariate 108, multivariate 183
+Run time (s): W=500: univariate 116, multivariate 167, W=1000: univariate 113, multivariate 186
 
 ## Notes
 - FHS-GJR and GJR-skew-t are recomputed and reproduce Phase 3b exactly.
@@ -177,3 +191,5 @@ Run time (s): W=500: univariate 109, multivariate 159, W=1000: univariate 108, m
 - 11 new model variants per window (x2 windows, x2 levels) were evaluated on the same sample.
   p-values are not adjusted for this; with ~22 99% tests at 5%, one or two passes/rejections by
   chance are expected, so differences of a few violations between close variants are not evidence.
+- Decision (2026-11-20): FHS-GJR (W = 1000) stays the official model; DCC-EVT (W = 1000, u = 90%) is a
+  monitored challenger with promotion rules fixed in advance (docs/model_validation_report.md, sections 6.6 and 12).

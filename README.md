@@ -107,7 +107,8 @@ python scripts/make_figures.py  # static figures in reports/figures/
 - **Phase 3c challengers**: conditional EVT (GPD on the FHS residual pool, 90% threshold) and
   DCC-GARCH(1,1) with GJR-t marginals per asset. DCC-EVT (W=1000) has 39 violations at 99%
   (expected 40.3) vs 47 for FHS-GJR and passes all tests; it is a monitored challenger, not the
-  official model (see `reports/phase3c_report.md`).
+  official model: the gap is within multiple-testing noise, so it is promoted only under rules
+  fixed in advance (`docs/model_validation_report.md` sections 6.6 and 12; `reports/phase3c_report.md`).
 - **Backtesting**: primary set-up is a 500-day rolling window, GARCH/EWMA-lambda refit every
   21 trading days with daily variance updates; sensitivity runs use daily refits and 250 / 1,000-day
   windows. All set-ups forecast the same 4,030 days. Tests at 5% (primary) and 1% significance.

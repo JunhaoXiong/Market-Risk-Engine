@@ -25,6 +25,7 @@ import pandas as pd
 from mre.backtest.coverage_tests import backtest_summary
 from mre.backtest.rolling import es_check, hits, rolling_forecasts
 from mre.backtest.rolling_dcc import rolling_dcc_forecasts
+from mre.backtest.traffic_light import traffic_light
 from mre.config import PROJECT_ROOT, load_config
 from mre.data.loader import get_prices
 from mre.data.quality import align_prices
@@ -180,6 +181,12 @@ def main() -> None:
                          "CCC corr SPY-TLT 2022 mean": fr["CCC-FHS"]["corr_SPY_TLT"].loc["2022"].mean()})
     dcc_tab = pd.DataFrame(dcc_rows)
 
+    tl_in = pd.concat([f.assign(model=f"{m}, W={W}").rename_axis("date").reset_index()
+                       for W, fr in all_frames.items() for m, f in fr.items()
+                       if m in ("FHS-GJR", "GJR-skew-t", "DCC-FHS", "CCC-EVT (u=90%)", "DCC-EVT (u=90%)")])
+    tl = traffic_light(tl_in)
+    tl[["green", "yellow", "red"]] = tl[["green", "yellow", "red"]].map("{:.1%}".format)
+
     first, last = r.index[cfg.oos_start_index].date(), r.index[-1].date()
     n_models = len(ORDER) - len(BENCH)
     report = f"""# Phase 3c Report: conditional EVT and DCC-GARCH
@@ -202,6 +209,9 @@ Tests: Kupiec POF, Christoffersen independence and conditional coverage; "REJECT
 ## 99% violation days: FHS-GJR vs DCC-EVT (u=90%)
 {chr(10).join(overlap_txt)}
 
+## Basel traffic light (99% VaR, rolling 250 days; green 0-4, yellow 5-9, red 10+)
+{tl.to_markdown()}
+
 ## GPD shape xi on the residual pool (daily fits)
 {xi_tab.to_markdown(index=False, floatfmt=".3f")}
 
@@ -222,6 +232,8 @@ Run time (s): {", ".join(f"W={W}: " + ", ".join(f"{k} {v:.0f}" for k, v in t.ite
 - {n_models} new model variants per window (x2 windows, x2 levels) were evaluated on the same sample.
   p-values are not adjusted for this; with ~{2 * n_models} 99% tests at 5%, one or two passes/rejections by
   chance are expected, so differences of a few violations between close variants are not evidence.
+- Decision (2026-11-20): FHS-GJR (W = 1000) stays the official model; DCC-EVT (W = 1000, u = 90%) is a
+  monitored challenger with promotion rules fixed in advance (docs/model_validation_report.md, sections 6.6 and 12).
 """
     (out / "phase3c_report.md").write_text(report, encoding="utf-8")
     print(report)
