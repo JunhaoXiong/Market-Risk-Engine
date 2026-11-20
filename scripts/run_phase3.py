@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from mre.backtest.coverage_tests import backtest_summary
-from mre.backtest.rolling import ALL_MODELS, es_check, hits, rolling_forecasts
+from mre.backtest.rolling import BASE_MODELS as ALL_MODELS, es_check, hits, rolling_forecasts
 from mre.config import PROJECT_ROOT, load_config
 from mre.data.loader import get_prices
 from mre.data.quality import align_prices

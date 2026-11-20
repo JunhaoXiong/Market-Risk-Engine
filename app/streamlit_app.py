@@ -25,7 +25,7 @@ from mre.config import load_config  # noqa: E402
 from mre.data.loader import get_prices  # noqa: E402
 from mre.data.quality import align_prices  # noqa: E402
 from mre.models.ewma import fit_ewma_cov_lambda  # noqa: E402
-from mre.models.garch import fit_garch, garch_var_es  # noqa: E402
+from mre.models.garch import fhs_var_es, fit_garch, garch_var_es  # noqa: E402
 from mre.models.shrinkage import ledoit_wolf_constant_correlation  # noqa: E402
 from mre.portfolio import portfolio_returns, simple_returns  # noqa: E402
 from mre.risk.var import historical_es, historical_var, normal_es, normal_var  # noqa: E402
@@ -62,6 +62,13 @@ def garch_t_var(r: np.ndarray, alpha: float) -> tuple[float, float]:
     return garch_var_es(fit_garch(r, "t"), alpha)
 
 
+@st.cache_data
+def primary_var(r: np.ndarray, alpha: float) -> tuple[float, float]:
+    """Official model (config var_model.primary): FHS with a GJR-GARCH-t filter."""
+    f = fit_garch(r, "t", "gjr")
+    return fhs_var_es(f, f.std_resid, alpha)
+
+
 def money(x: float) -> str:
     return f"-${-x:,.0f}" if x < 0 else f"${x:,.0f}"
 
@@ -78,6 +85,7 @@ def style(fig: go.Figure, height=380, ytitle=None) -> go.Figure:
 cfg, prices, R = load_returns()
 T = cfg.tickers
 W = cfg.estimation_window
+PW = int(cfg.raw["var_model"]["primary"]["window"])
 
 # ----------------------------------------------------------------- sidebar
 st.sidebar.title("Portfolio")
@@ -104,19 +112,22 @@ with tab_risk:
     rp = portfolio_returns(R, w)
     win = rp.iloc[-W:].to_numpy()
     alpha = st.radio("Confidence level", [0.95, 0.99], index=1, horizontal=True, format_func=lambda a: f"{a:.0%}")
+    pv, pe = primary_var(rp.iloc[-PW:].to_numpy(), alpha)
     gv, ge = garch_t_var(win, alpha)
     rows = [
+        (f"FHS-GJR [primary], next day (last {PW})", pv, pe),
+        (f"GARCH(1,1)-t [previous], next day (last {W})", gv, ge),
         ("Historical, full sample", historical_var(rp, alpha), historical_es(rp, alpha)),
         (f"Historical, last {W} days", historical_var(win, alpha), historical_es(win, alpha)),
         (f"Normal, last {W} days", normal_var(win, alpha), normal_es(win, alpha)),
-        (f"GARCH(1,1)-t, next day (fit on last {W})", gv, ge),
     ]
-    c = st.columns(4)
+    c = st.columns(5)
     for col, (name, v, e) in zip(c, rows):
         col.metric(f"VaR · {name}", money(v * V))
         col.caption(f"ES {money(e * V)}")
     st.caption(f"As of {R.index[-1].date()}. Full-sample numbers are in-sample descriptions; "
-               "the GARCH-t number is a one-day-ahead forecast.")
+               "the FHS-GJR and GARCH-t numbers are one-day-ahead forecasts. The primary model was changed "
+               "from GARCH-t to FHS-GJR in Phase 3b (see the VaR backtest tab).")
     fig = go.Figure()
     fig.add_histogram(x=rp * 100, nbinsx=150, marker_color=SERIES[0], name="Daily return",
                       hovertemplate="%{x:.2f}%: %{y} days<extra></extra>")
@@ -128,12 +139,20 @@ with tab_risk:
 
 # ----------------------------------------------------------------- backtest
 with tab_bt:
-    res = read_csv("phase3_backtest_results.csv")
-    fc = read_csv("phase3_primary_forecasts.csv.gz", parse_dates=["date"])
-    st.caption("Out-of-sample rolling forecasts for the 40/30/20/10 portfolio (Phase 3). "
-               "Each forecast uses only returns before the forecast date.")
+    res = read_csv("phase3b_backtest_results.csv")
+    off = read_csv("var_model_forecasts.csv.gz", parse_dates=["date"])
+    off["model"] = off["model"] + " [" + off["role"] + "]"
+    others = pd.concat([read_csv("phase3_primary_forecasts.csv.gz", parse_dates=["date"]),
+                        read_csv("phase3b_primary_forecasts.csv.gz", parse_dates=["date"])])
+    others["model"] = others["model"] + ", W=500"
+    fc = pd.concat([off, others], ignore_index=True)
+    st.caption("Out-of-sample rolling forecasts for the 40/30/20/10 portfolio (Phases 3 and 3b), "
+               "2009-12-23 to 2025-12-31. Each forecast uses only returns before the forecast date. "
+               "Primary model: FHS with a GJR-GARCH-t filter on a 1,000-day window (the only model that "
+               "passes Kupiec, independence and conditional coverage at both 95% and 99%).")
     c1, c2 = st.columns(2)
-    model = c1.selectbox("Model", fc["model"].unique().tolist(), index=fc["model"].unique().tolist().index("GARCH-t"))
+    names = fc["model"].unique().tolist()
+    model = c1.selectbox("Model", names, index=0)
     a_bt = c2.radio("Level", [0.95, 0.99], index=1, horizontal=True, format_func=lambda a: f"{a:.0%}", key="bt_a")
     k = int(round(a_bt * 100))
     g = fc[fc["model"] == model].set_index("date")

@@ -37,24 +37,31 @@ def save(fig, name):
 
 
 def fig_var_backtest():
-    f = pd.read_csv(REP / "phase3_primary_forecasts.csv.gz", parse_dates=["date"])
-    g = f[f["model"] == "GARCH-t"].set_index("date")
+    f = pd.read_csv(REP / "var_model_forecasts.csv.gz", parse_dates=["date"])
+    g = f[f["role"] == "primary"].set_index("date")
+    prev = f[f["role"] == "previous"].set_index("date")
     fig, ax = plt.subplots(figsize=(11, 4.2))
     ax.plot(g.index, g["realized"] * 100, color="#b9b8b2", lw=0.6, label="Realised daily return")
-    ax.plot(g.index, -g["var_99"] * 100, color=C["blue"], lw=1.2, label="GARCH-t 99% VaR (negated)")
+    ax.plot(prev.index, -prev["var_99"] * 100, color=C["orange"], lw=0.9, alpha=0.8,
+            label=f"Previous: {prev['model'].iloc[0]} 99% VaR")
+    ax.plot(g.index, -g["var_99"] * 100, color=C["blue"], lw=1.2, label=f"Primary: {g['model'].iloc[0]} 99% VaR")
     hit = g["realized"] < -g["var_99"]
     ax.scatter(g.index[hit], g.loc[hit, "realized"] * 100, s=16, color=C["red"], zorder=3,
-               edgecolor=SURF, linewidth=0.8, label=f"Violation ({int(hit.sum())} vs {0.01 * len(g):.0f} expected)")
+               edgecolor=SURF, linewidth=0.8,
+               label=f"Primary violation ({int(hit.sum())} vs {0.01 * len(g):.0f} expected; previous {int((prev['realized'] < -prev['var_99']).sum())})")
     ax.set_ylabel("Daily return (%)")
-    ax.set_title("Out-of-sample 99% VaR backtest, GARCH(1,1)-t, 500-day window")
-    ax.legend(loc="lower left", ncol=3)
-    save(fig, "var_backtest_garch_t.png")
+    ax.set_title("Out-of-sample 99% VaR backtest, FHS with GJR-GARCH-t filter (1,000-day window) vs previous GARCH-t")
+    ax.legend(loc="lower left", ncol=2)
+    save(fig, "var_backtest_primary.png")
 
 
 def fig_violations():
-    r = pd.read_csv(REP / "phase3_backtest_results.csv")
-    p = r[r["setup"].str.startswith("Primary") & (r["alpha"] == 0.99)]
-    fig, ax = plt.subplots(figsize=(8, 3.6))
+    r = pd.read_csv(REP / "phase3b_backtest_results.csv")
+    p = r[r["setup"].str.startswith("Primary") & (r["alpha"] == 0.99)].copy()
+    w1 = r[(r["setup"] == "Sens: W=1000, refit 21d") & (r["alpha"] == 0.99) & (r["model"] == "FHS (GJR-t filter)")].copy()
+    w1["model"] = "FHS (GJR-t filter), W=1000 [primary]"
+    p = pd.concat([p, w1], ignore_index=True)
+    fig, ax = plt.subplots(figsize=(8, 5.2))
     y = np.arange(len(p))
     ax.barh(y, p["violations"], color=C["blue"], height=0.55)
     ax.axvline(p["expected"].iloc[0], color=INK, lw=1.2, ls="--")
@@ -65,7 +72,7 @@ def fig_violations():
     ax.set_xlim(0, p["violations"].max() * 1.45)
     ax.set_ylim(len(p) - 0.5, -0.9)
     ax.grid(axis="y", visible=False)
-    ax.set_title("99% VaR violations, 2009-12 to 2025-12 (4,030 days)")
+    ax.set_title("99% VaR violations, 4,030 days (W=500 unless stated)", loc="right")
     save(fig, "violations_99.png")
 
 
