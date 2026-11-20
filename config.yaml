@@ -31,6 +31,11 @@ models:
   garch_primary_dist: t     # Student-t innovations (primary)
   garch_benchmark_dist: normal
 
+var_model:                   # official 1-day VaR/ES model (chosen in Phase 3b, see docs/model_validation_report.md 6.5)
+  primary: {model: fhs_gjr, window: 1000}       # FHS with GJR-GARCH-t filter, 1000-day window / residual pool
+  alternative: {model: gjr_skewt, window: 500}  # parametric challenger
+  previous: {model: garch_t, window: 500}       # Phase 3 primary, kept as benchmark
+
 backtest:
   oos_start_index: 1000     # first forecast = return #1000 (2009-12-23); common to all windows
   refit_every: 21           # primary: refit GARCH / EWMA lambda every 21 trading days

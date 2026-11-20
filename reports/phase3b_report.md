@@ -140,7 +140,7 @@ Tests: Kupiec POF, Christoffersen independence and conditional coverage; "REJECT
 - Sens: W=250, refit 21d: none
 - Sens: W=1000, refit 21d: none
 
-Run time per set-up (s): Primary: W=500, refit 21d: 63, Sens: W=500, refit daily: 1036, Sens: W=250, refit 21d: 63, Sens: W=1000, refit 21d: 64
+Run time per set-up (s): Primary: W=500, refit 21d: 62, Sens: W=500, refit daily: 1008, Sens: W=250, refit 21d: 63, Sens: W=1000, refit 21d: 64
 
 ## Notes
 - Phase 3 models are recomputed here and reproduce the Phase 3 numbers exactly.

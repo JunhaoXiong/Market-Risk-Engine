@@ -18,11 +18,11 @@ this is stated explicitly.
 
 | Item | Finding |
 |---|---|
-| Model in scope | 1-day 95% / 99% VaR and ES for a static ETF portfolio; GARCH(1,1) with Student-t innovations is the primary model, with Historical, Normal, EWMA and GARCH-Normal as challengers. |
-| Overall rating | **Fit for purpose with conditions.** No model passes unconditional coverage at 99% in the primary set-up. GARCH-t has the fewest 99% violations among conditional models (73 vs 40.3 expected), no significant clustering at 5% (p = 0.054), and the most accurate tail-loss severity (ES ratio 1.01). |
-| Main weakness | All models under-forecast the 99% tail. GARCH-t over-violates at 95% (6.30% vs 5%), which suggests the fitted Student-t shape is too light in the body/shoulder and too heavy relative to the 95% quantile. |
-| Regulatory view | On rolling 250-day windows, GARCH-t is in the Basel red zone in 0.4% of windows (Historical 1.0%, Normal 23.5%). The latest window (2025) is yellow for every model (5 exceptions for GARCH-t). |
-| Recommendations | (1) Add filtered historical simulation (GARCH-filtered empirical residuals) as the next challenger; (2) evaluate a skewed-t innovation; (3) apply a capital-style multiplier or VaR buffer while the 99% under-coverage persists; (4) add a formal ES backtest (Acerbi-Szekely Z2). |
+| Model in scope | 1-day 95% / 99% VaR and ES for a static ETF portfolio. **Primary model (since Phase 3b): filtered historical simulation with a GJR-GARCH-t filter on a 1,000-day window (FHS-GJR).** Alternative: GJR-GARCH with Hansen skewed-t innovations (W = 500). The previous primary, GARCH(1,1)-t (W = 500), and Historical, Normal, EWMA and GARCH-Normal are kept as benchmarks. |
+| Overall rating | **Fit for purpose, with a monitoring condition.** FHS-GJR has 47 violations at 99% (40.3 expected) and 201 at 95% (201.5 expected). It is the only model that passes Kupiec, independence and conditional coverage at both levels, and its ES ratio is 0.99. The condition: the model and window were chosen after seeing the out-of-sample results (section 6.5), so the result has to be confirmed on new data. |
+| Main finding | The original GARCH-t failed at 99% (73 violations) and over-violated at 95% (6.3%) because the portfolio's left tail is skewed, not because volatility reacted too slowly. Adding skewness fixes most of the gap; adding a leverage effect alone does not. |
+| Regulatory view | On rolling 250-day windows FHS-GJR is green in 80.6% of windows and never red (GARCH-t: 48.7% green, 0.4% red). The latest window (2025) is green with 4 exceptions; it was yellow for every Phase 3 model. |
+| Recommendations | (1) Monitor FHS-GJR on new data and keep GJR-skew-t and GARCH-t running as challengers; (2) add a formal ES backtest (Acerbi-Szekely Z2); (3) re-run the model comparison once a year. |
 
 ---
 
@@ -64,7 +64,9 @@ clustering. Both facts reject an i.i.d. Normal model on conceptual grounds befor
 | Normal (variance-covariance) | `VaR = -(mu + sigma z_{1-a})`, `ES = -mu + sigma phi(z_a)/(1-a)`, sample mean and ddof = 1 | window W | Challenger, textbook baseline |
 | EWMA | `sigma^2_t = lambda sigma^2_{t-1} + (1-lambda) r^2_{t-1}`, zero mean, Normal quantile | lambda by Gaussian QMLE inside the window, bounds [0.80, 0.9995], 30-day burn-in | Challenger, RiskMetrics family |
 | GARCH(1,1)-Normal | `sigma^2_t = omega + alpha e^2_{t-1} + beta sigma^2_{t-1}`, constant mean | MLE via `arch` | Benchmark |
-| **GARCH(1,1)-t** | Same variance equation, standardised Student-t innovations (unit variance) | MLE, nu estimated | **Primary** |
+| GARCH(1,1)-t | Same variance equation, standardised Student-t innovations (unit variance) | MLE, nu estimated | Previous primary (to Phase 3), benchmark |
+| GARCH-skew-t, GJR-t, GJR-skew-t, EGARCH-t | GJR: `+ gamma 1[e<0] e^2_{t-1}`; EGARCH: log-variance with `alpha(|z|-sqrt(2/pi)) + gamma z`; Hansen (1994) skewed t | MLE; EGARCH bounded alpha >= 0, beta <= 0.999 | Phase 3b challengers; **GJR-skew-t (W = 500) is the alternative** |
+| **FHS-GJR** | GJR-GARCH-t volatility filter; VaR/ES from the empirical quantile / tail mean of the last W standardised residuals, scaled by the one-day-ahead sigma | MLE filter; W = 1,000 window and residual pool | **Primary (since Phase 3b)** |
 
 Covariance estimators used for attribution, stress and allocation: sample, EWMA (common
 lambda by multivariate Gaussian MLE), and Ledoit-Wolf shrinkage (identity and
@@ -76,7 +78,8 @@ constant-correlation targets). Full derivations are in `docs/methodology_zh.md`.
 |---|---|---|
 | Simple returns at portfolio level | Portfolio return is exactly `w'r`; log returns do not aggregate across assets | None for a 1-day horizon |
 | Constant weights for VaR | Standard for a target-weight mandate; isolates the risk model from trading | Drift between rebalances ignored |
-| Student-t innovations | Excess kurtosis of 11.1; AIC favours t over Normal by 27.1 points on the last 1,000 days | Symmetric t cannot capture skew |
+| Student-t innovations (previous primary) | Excess kurtosis of 11.1; AIC favours t over Normal by 27.1 points on the last 1,000 days | Symmetric t cannot capture skew (confirmed in Phase 3b) |
+| FHS: tail shape from filtered residuals | No distributional assumption for the tail; the GJR filter removes volatility clustering and the leverage effect, so the residuals are close to i.i.d. | With 1,000 residuals the 99% quantile rests on about 10 points; a tail event outside the last four years is not in the pool |
 | AIC/BIC instead of an LR test (t vs Normal) | nu = infinity is on the boundary of the parameter space, so the LR statistic is not chi-square | n/a |
 | Zero mean for EWMA | RiskMetrics convention; daily means are small relative to volatility | Slightly conservative in up-trends |
 | Rolling window W = 500, refit every 21 days | Balances parameter stability against adaptivity; sensitivity to 250 / 1,000 and to daily refits is reported | Regime shifts inside the window |
@@ -97,7 +100,7 @@ constant-correlation targets). Full derivations are in `docs/methodology_zh.md`.
 
 ## 5. Implementation verification
 
-The implementation is verified by **145 unit tests** (offline, synthetic or cached data),
+The implementation is verified by **165 unit test cases** (offline, synthetic or cached data),
 run on every push by GitHub Actions (`.github/workflows/tests.yml`).
 
 | Module | Test functions | Examples of what is verified |
@@ -108,11 +111,12 @@ run on every push by GitHub Actions (`.github/workflows/tests.yml`).
 | Rolling backtest / coverage tests | 19 | No look-ahead; parallel equals serial; daily variance update between refits; Kupiec and Christoffersen against hand-worked values; test size under the null and power against under-coverage |
 | Stress / attribution | 17 | Euler components sum to total; marginal VaR equals the numerical derivative; conditional shock matches simulation; buy-and-hold hand check |
 | Optimisation / walk-forward / dynamic | 29 | Two-asset min-variance closed form; equal risk contributions; min-CVaR equals historical ES and beats a grid; threshold rule trades only on large deviations; covariance forecasts use the trailing window only |
+| Phase 3b tail models | 15 | Skew-t quantile and ES against an independent density integral; skew-t with lambda = 0 equals t; GJR / EGARCH recover the leverage effect; daily variance update equals arch's filter for GARCH, GJR and EGARCH; FHS formula and daily-rolled residual pool; no look-ahead for every new model; failed refit keeps previous parameters |
 | Basel traffic light | 3 | Zone boundaries; exception counting on rolling windows |
 | Dashboard | 2 | Streamlit app renders all five tabs; changing weights recomputes risk |
 | Config | 2 | Default config loads; bad weights rejected |
 
-Some functions are parametrised, giving 145 test cases in total.
+Some functions are parametrised, giving 165 test cases in total.
 
 GARCH is estimated on returns scaled by 100 for numerical stability; the reported
 log-likelihood includes the Jacobian correction so that AIC/BIC are comparable with models
@@ -131,7 +135,9 @@ fitted on unscaled returns.
 
 ### 6.2 Primary set-up (W = 500, refit every 21 days)
 
-Source: `reports/phase3_backtest_results.csv`.
+Source: `reports/phase3_backtest_results.csv`. This section covers the Phase 3 models and is the
+evidence that led to the model change; the Phase 3b models and the new primary are compared in
+section 6.5.
 
 | Model | 95% hits (exp. 201.5) | Kupiec p | CC p | 99% hits (exp. 40.3) | Kupiec p | Ind. p | CC p | ES ratio 99% |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -141,7 +147,7 @@ Source: `reports/phase3_backtest_results.csv`.
 | GARCH-Normal | 231 | 0.037 | 0.112 | 91 | 5.5e-12 | 0.217 | 2.2e-11 | 1.14 |
 | **GARCH-t** | 254 | 0.00026 | 0.001 | **73** | 3.3e-06 | 0.054 | 3.2e-06 | **1.01** |
 
-![99% VaR backtest, GARCH-t](../reports/figures/var_backtest_garch_t.png)
+
 
 **Findings**
 
@@ -174,15 +180,80 @@ Source: `reports/phase6_traffic_light.md` (`scripts/run_phase6.py`). 99% VaR, ro
 
 | Model | Green | Yellow | Red | Max exceptions | Last 250 days | Last zone |
 |---|---:|---:|---:|---:|---:|---|
-| Historical | 59.9% | 39.1% | 1.0% | 10 | 5 | yellow |
-| Normal | 48.2% | 28.3% | 23.5% | 23 | 6 | yellow |
-| EWMA (MLE lambda) | 24.1% | 69.6% | 6.3% | 11 | 5 | yellow |
-| GARCH-Normal | 29.8% | 63.8% | 6.4% | 11 | 6 | yellow |
-| **GARCH-t** | 48.7% | 50.8% | **0.4%** | 10 | 5 | yellow |
+| **FHS-GJR, W=1000 (primary)** | **80.6%** | 19.4% | **0.0%** | 8 | 4 | **green** |
+| GJR-skew-t, W=500 (alternative) | 72.0% | 28.0% | 0.0% | 8 | 4 | green |
+| GARCH-t, W=500 (previous) | 48.7% | 50.8% | 0.4% | 10 | 5 | yellow |
+| Historical, W=500 | 59.9% | 39.1% | 1.0% | 10 | 5 | yellow |
+| Normal, W=500 | 48.2% | 28.3% | 23.5% | 23 | 6 | yellow |
+| EWMA (MLE lambda), W=500 | 24.1% | 69.6% | 6.3% | 11 | 5 | yellow |
+| GARCH-Normal, W=500 | 29.8% | 63.8% | 6.4% | 11 | 6 | yellow |
 
-GARCH-t almost never reaches the red zone; the Normal model would have been in the red zone
-almost a quarter of the time. Under the Basel framework a yellow zone with 5 exceptions adds
-0.40 to the capital multiplier (3.0 to 3.4).
+FHS-GJR never reaches the red zone and is green in four windows out of five; the latest window
+(2025) is green with 4 exceptions, where every Phase 3 model was yellow. The Normal model would
+have been in the red zone almost a quarter of the time. Under the Basel framework a yellow zone
+with 5 exceptions adds 0.40 to the capital multiplier (3.0 to 3.4); green adds nothing.
+
+### 6.5 Model change: GARCH-t to FHS-GJR
+
+**Decision (Phase 3b, 2026-11-20):** the primary 1-day VaR/ES model changes from GARCH(1,1)-t
+with a 500-day window to filtered historical simulation with a GJR-GARCH-t filter and a
+1,000-day window and residual pool. GJR-skew-t (W = 500) becomes the parametric alternative;
+GARCH-t stays in the backtest as a benchmark. Configuration: `var_model` in `config.yaml`.
+Sources: `reports/phase3b_report.md`, `reports/phase3b_backtest_results.csv`,
+`reports/var_model_forecasts.csv.gz` (`scripts/run_phase3b.py`).
+
+**Why GARCH-t had to go.** Sections 6.2 and 6.4 show it failing in a consistent way: 73
+violations at 99% (Kupiec p = 3.3e-06), 254 at 95% (p = 0.0003), yet with no significant
+clustering. Violations that are too many but not clustered point to the wrong quantile, not to
+volatility that updates too slowly. Daily refitting confirmed this (74 violations).
+
+**What was tested.** Six candidates on the same 4,030 days and the same four set-ups. Each
+targets one hypothesis:
+
+| Hypothesis | Model | 99% violations (W=500) | Verdict |
+|---|---|---:|---|
+| Tail is skewed | GARCH-skew-t | 60 | Large improvement; lambda < 0 in 93% of refits (median -0.10) |
+| Volatility reacts asymmetrically (leverage) | GJR-t | 72 | gamma about 0.19 is real, but coverage barely changes |
+| Same, log form | EGARCH-t | 83 | Worse |
+| Both | GJR-skew-t | 53 | Kupiec p = 0.055 |
+| Tail shape not assumed | FHS, GARCH-t filter | 55 | Kupiec p = 0.027 |
+| Same, with leverage in the filter | FHS, GJR-t filter | 53 | Kupiec p = 0.055 |
+
+**Why FHS-GJR at W = 1,000.**
+
+| Criterion | GARCH-t, W=500 | GJR-skew-t, W=500 | FHS-GJR, W=500 | **FHS-GJR, W=1000** |
+|---|---:|---:|---:|---:|
+| 95% violations (exp. 201.5) / CC p | 254 / 0.001 | 205 / 0.854 | 208 / 0.697 | **201 / 0.950** |
+| 99% violations (exp. 40.3) | 73 | 53 | 53 | **47** |
+| 99% Kupiec p / Ind. p / CC p | 3e-06 / 0.054 / 3e-06 | 0.055 / 0.037 / 0.018 | 0.055 / 0.037 / 0.018 | **0.301 / 0.124 / 0.179** |
+| ES ratio 99% | 1.01 | 0.99 | 1.00 | 0.99 |
+| Basel: green share / red share | 48.7% / 0.4% | 72.0% / 0.0% | - | **80.6% / 0.0%** |
+| Average 99% VaR on $1M | $17,391 | $18,889 | $19,249 | $19,687 |
+
+1. It is the only model, in any set-up, that passes all three tests at both 95% and 99%.
+2. FHS makes no assumption about the tail shape: the skew and fat tails come from the
+   portfolio's own filtered residuals, which matches the diagnosis that the shape was the problem.
+3. A 1,000-day pool puts about 10 residuals beyond the 99% quantile instead of about 5,
+   so the tail quantile is less noisy. The filter itself still adapts daily.
+4. The cost is a higher VaR, about 13% above GARCH-t on average, which is what correct coverage
+   requires. It is still below Historical simulation ($21.5k at W = 500, $23.4k at W = 1,000),
+   and unlike Historical simulation its violations do not cluster.
+
+![99% VaR backtest, FHS-GJR primary vs previous GARCH-t](../reports/figures/var_backtest_primary.png)
+
+**Why GJR-skew-t is kept as the alternative.** It is the best fully parametric model, uses the
+pre-specified W = 500, and gives closed-form quantiles. It is the fallback if the residual pool
+proves unstable.
+
+**Limitations of this decision (stated, not hidden).**
+- *Selection after seeing the results.* The 500-day window was fixed before Phase 3; W = 1,000
+  and the FHS-GJR specification were chosen after the out-of-sample results were known, out of
+  six new candidates and four set-ups. Its p-values are therefore optimistic. At the
+  pre-specified W = 500, FHS-GJR and GJR-skew-t still pass Kupiec at 5% but fail conditional
+  coverage at 5%.
+- *Single history.* One portfolio and one 16-year path.
+- *99% clustering is not fully gone at W = 500* (independence p = 0.037).
+These are why the rating carries a monitoring condition (section 12).
 
 ## 7. Benchmarking and sensitivity analysis
 
@@ -195,14 +266,23 @@ almost a quarter of the time. Under the Basel framework a yellow zone with 5 exc
 | EWMA | 96 | 95 | 92 | - |
 | GARCH-Normal | 104 | 91 | 86 | 94 |
 | GARCH-t | 79 | 73 | 68 | 74 |
+| GARCH-skew-t | 65 | 60 | 50 | 59 |
+| GJR-t | 79 | 72 | 68 | 76 |
+| GJR-skew-t | 63 | 53 | 54 | 54 |
+| EGARCH-t | 85 | 83 | 68 | 83 |
+| FHS, GARCH-t filter | 67 | 55 | 47 | 56 |
+| **FHS, GJR-t filter** | 65 | 53 | **47 (primary)** | 54 |
 
-- Ranking is stable: GARCH-t is the best conditional model in every set-up.
+- Among the Phase 3 models GARCH-t is the best conditional model in every set-up; among all
+  models the skewed / FHS models are best in every set-up (source: `reports/phase3b_backtest_results.csv`).
 - Longer windows reduce 99% violations for every model. Historical with W = 1,000 passes
   Kupiec at 99% (42 hits, p = 0.79) but still fails independence (p = 5.5e-05).
 - Daily refitting changes GARCH results by 1-3 violations, so the monthly refit is not a
   material simplification, and it needs about 21 times fewer GARCH fits.
-- The primary window was fixed at 500 before the backtest was run; W = 1,000 looks better
-  ex post, but switching to it now would be a choice made with knowledge of the results.
+- The primary window was fixed at 500 before the backtest was run. W = 1,000 looks better
+  ex post; Phase 3b adopted it for the new primary model knowing this (section 6.5).
+- W = 250 is worse for every GARCH-type and FHS model: the tail parameters or residual
+  quantiles are too noisy.
 
 ### 7.2 Parameter stability (primary GARCH-t, 192 refits)
 
@@ -284,9 +364,11 @@ before the run; 8% and 12% are reported as sensitivities.
 
 1. **Single portfolio, single path.** Results are for one four-ETF portfolio over one
    history; there is no cross-sectional or bootstrap evidence of robustness.
-2. **Multiple testing.** Five models x two levels x four set-ups produce many p-values; a few
+2. **Multiple testing.** Eleven models x two levels x four set-ups produce many p-values; a few
    passes or rejections near 5% are expected by chance.
-3. **Symmetric innovations.** Neither model captures the negative skew of equity crashes.
+3. **Model selected after seeing the results.** The primary FHS-GJR at W = 1,000 was chosen in
+   Phase 3b from six candidates and four set-ups using this same out-of-sample period
+   (section 6.5); its test results are optimistic until confirmed on new data.
 4. **Gaussian attribution and conditional stress** understate tail dependence (correlations
    rise in crises).
 5. **Data vendor.** Yahoo adjusted prices are revised retroactively; the hash-verified
@@ -299,11 +381,11 @@ before the run; 8% and 12% are reported as sensitivities.
 
 | # | Recommendation | Priority |
 |---|---|---|
-| 1 | Add filtered historical simulation (GARCH volatility x empirical standardised residuals) as a challenger. It keeps GARCH-t's adaptivity while removing the parametric tail shape that over-violates at 95%. | High |
-| 2 | Test a skewed-t (Hansen) innovation, compared with GARCH-t by AIC and by backtest. | High |
-| 3 | Until 99% coverage is restored, apply a buffer: report VaR x the Basel multiplier implied by the trailing 250-day zone, or a fixed 10-15% add-on, and track it. | Medium |
+| 1 | Done in Phase 3b: filtered historical simulation and skewed-t added; FHS-GJR (W = 1,000) adopted as primary (section 6.5). | Done |
+| 2 | Confirm FHS-GJR on data after 2025-12-31 before relying on it for capital-style decisions; keep GJR-skew-t and GARCH-t running in parallel and compare monthly. | High |
+| 3 | If the primary model enters the yellow zone, report VaR x the Basel multiplier implied by the trailing 250-day zone and review the residual-pool length. | Medium |
 | 4 | Add an ES backtest (Acerbi-Szekely Z2 with simulated critical values) and the Basel ES-based traffic light. | Medium |
-| 5 | Ongoing monitoring: run `run_phase3.py` / `run_phase6.py` monthly; escalate when the 250-day 99% count reaches 5 (yellow) and trigger a model review at 10 (red). | Medium |
+| 5 | Ongoing monitoring: run `run_phase3b.py` / `run_phase6.py` monthly; escalate when the 250-day 99% count reaches 5 (yellow) and trigger a model review at 10 (red). | Medium |
 | 6 | Stress the stock-bond correlation explicitly (e.g. +0.5) in addition to historical periods. | Low |
 
 ---
@@ -312,10 +394,11 @@ before the run; 8% and 12% are reported as sensitivities.
 
 ```bash
 pip install -e ".[dev,dashboard]"
-pytest                              # 145 tests
+pytest                              # 165 tests
 python scripts/run_phase1.py        # data snapshot, static VaR/ES
 python scripts/run_phase2.py        # volatility and covariance models
 python scripts/run_phase3.py        # rolling backtest (about 1 minute on 4 cores)
+python scripts/run_phase3b.py       # tail models and official var_model forecasts (about 20 minutes)
 python scripts/run_phase4.py        # stress and attribution
 python scripts/run_phase5.py        # allocation walk-forward
 python scripts/run_phase6.py        # Basel traffic light

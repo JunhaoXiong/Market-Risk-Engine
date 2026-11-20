@@ -316,6 +316,45 @@ $$\text{ES ratio} = \frac{\text{mean}\{-r_t : I_t = 1\}}{\text{mean}\{\text{ES}_
 代码：`rolling.py:157`
 **[审查点]** 正式的 ES 回测，比如 Acerbi–Székely Z₂ 检验，还没有实现。
 
+
+## 6b. 尾部模型扩展与主模型更换（Phase 3b）
+
+**6b.1 GJR-GARCH(1,1,1)**（杠杆效应）
+
+$$\sigma^2_t = \omega + \left(\alpha + \gamma\,\mathbb{1}[\varepsilon_{t-1}<0]\right)\varepsilon^2_{t-1} + \beta\sigma^2_{t-1}$$
+
+$\gamma>0$ 表示负冲击使波动率上升得更多。代码：`garch.py` 中 `GarchFit.next_variance`（重估之间的每日更新），单元测试验证它与 `arch` 自身的滤波逐日一致。
+
+**6b.2 EGARCH(1,1,1)**
+
+$$\ln\sigma^2_t = \omega + \alpha\left(|z_{t-1}| - \sqrt{2/\pi}\right) + \gamma z_{t-1} + \beta\ln\sigma^2_{t-1}$$
+
+$\gamma<0$ 为杠杆效应。$\sqrt{2/\pi}$ 是 `arch` 对所有分布统一使用的中心化常数。缩放换算：$\omega_{\text{raw}} = \omega - (1-\beta)\ln 100^2$。
+**[审查点]** 估计时约束 $\alpha \ge 0$、$\beta \le 0.999$，并从 4 个初值出发取似然最高的合理解。不加约束时，部分 500 天窗口会收敛到 $\alpha<0$、$\beta\approx1$ 的解，样本外方差发散。若重估仍不合理（不收敛、预测波动率超过样本标准差的 10 倍、或 $\nu\le2.1$），就沿用上一组参数；全部回测中都没有出现这种情况。
+
+**6b.3 Hansen (1994) 偏 t 分布**（参数 $\eta>2$、$-1<\lambda<1$，单位方差）
+
+$$f(z) = \begin{cases} bc\left(1 + \frac{1}{\eta-2}\left(\frac{bz+a}{1-\lambda}\right)^2\right)^{-\frac{\eta+1}{2}}, & z < -a/b \\ bc\left(1 + \frac{1}{\eta-2}\left(\frac{bz+a}{1+\lambda}\right)^2\right)^{-\frac{\eta+1}{2}}, & z \ge -a/b \end{cases}$$
+
+其中 $c = \frac{\Gamma((\eta+1)/2)}{\sqrt{\pi(\eta-2)}\,\Gamma(\eta/2)}$，$a = 4\lambda c\frac{\eta-2}{\eta-1}$，$b^2 = 1 + 3\lambda^2 - a^2$。$\lambda<0$ 表示左尾更厚。
+分位数用 Hansen 的闭式解（`arch` 的 `SkewStudent.ppf`）。由于左右尾不对称，ES 不能用对称性，改用数值积分：
+
+$$\text{ES}_z(\alpha) = -\frac{1}{1-\alpha}\int_0^{1-\alpha} q_z(u)\,du$$
+
+**[审查点]** 单元测试用密度积分独立校验分位数和 ES，并验证 $\lambda=0$ 时退化为标准化 t。
+
+**6b.4 过滤历史模拟（FHS，Barone-Adesi 等 1999）**
+
+$$\text{VaR}_{\alpha,t} = -\left(\mu + \sigma_t\,\hat q_{1-\alpha}(\{z_s\})\right), \qquad \text{ES}_{\alpha,t} = -\mu + \sigma_t\,\widehat{\text{ES}}_\alpha(\{z_s\})$$
+
+$z_s = (r_s - \mu)/\sigma_s$ 是最近 $W$ 天（$s<t$）的标准化残差。$\sigma_s$ 用最近一次重估的参数计算：训练窗口内取拟合结果，之后每日用同一组参数滤波并滚动加入。$\hat q$、$\widehat{\text{ES}}$ 与历史模拟用同一个经验分位数函数。
+**[审查点]** $W=1000$ 时，99% 分位数大约由 10 个尾部残差决定；$W=500$ 时只有约 5 个。
+
+**6b.5 主模型更换**
+
+官方 1 日 VaR/ES 主模型从 GARCH-t（$W=500$）改为 **FHS-GJR**（GJR-GARCH-t 滤波，$W=1000$）。GJR-skew-t（$W=500$）作为参数化备选，GARCH-t 保留为对照。配置见 `config.yaml` 的 `var_model`。理由和证据见 `docs/model_validation_report.md` 第 6.5 节。
+**[审查点]** $W=1000$ 是在看到样本外结果之后选的（Phase 3 的主窗口是事先定的 500）。这是一个事后选择，应当用之后的新数据继续监控。
+
 ---
 
 ## 7. 压力测试（Phase 4）

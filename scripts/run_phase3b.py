@@ -83,7 +83,7 @@ def main(skip_daily: bool = False) -> None:
     for w in cfg.sensitivity_windows:
         setups.append((f"Sens: W={w}, refit {every}d", w, every, ALL_MODELS))
 
-    rows, primary, failed, timing = [], None, {}, {}
+    rows, primary, failed, timing, by_window = [], None, {}, {}, {}
     for name, w, ev, models in setups:
         t0 = time.time()
         frames = rolling_forecasts(r, w, start, levels, ev, models, cfg.ewma_burn_in)
@@ -95,12 +95,24 @@ def main(skip_daily: bool = False) -> None:
                         for m in models if m in GARCH_SPECS}
         if primary is None:
             primary = frames
+        if ev == every:
+            by_window.setdefault(w, frames)
 
     res = pd.DataFrame(rows)
     out = PROJECT_ROOT / "reports"
     res.to_csv(out / "phase3b_backtest_results.csv", index=False)
     long = pd.concat({LABEL[m]: primary[m] for m in NEW if m in primary}, names=["model", "date"])
     long.to_csv(out / "phase3b_primary_forecasts.csv.gz", float_format="%.8g")
+
+    # official model forecasts (config var_model): primary / alternative / previous
+    roles = []
+    for role in ("primary", "alternative", "previous"):
+        spec = cfg.raw["var_model"][role]
+        f = by_window[int(spec["window"])][spec["model"]][[f"{k}_{int(a * 100)}" for a in levels for k in ("var", "es")]
+                                                           + ["realized", "sigma"]]
+        roles.append(f.assign(role=role, model=f"{LABEL[spec['model']]}, W={spec['window']}"))
+    off = pd.concat(roles).rename_axis("date").reset_index()
+    off.to_csv(out / "var_model_forecasts.csv.gz", index=False, float_format="%.8g")
 
     yearly = pd.DataFrame({LABEL[m]: hits(f, 0.99).groupby(f.index.year).sum() for m, f in primary.items()
                            if m in NEW or m in ("historical", "garch_t")})
