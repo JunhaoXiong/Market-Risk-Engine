@@ -76,12 +76,13 @@ allocation walk-forward.
 ## Quick start
 ```bash
 pip install -e ".[dev,dashboard]"
-pytest                          # 164 unit tests (offline)
+pytest                          # 185 unit tests (offline)
 python scripts/run_phase1.py    # uses data/raw/prices.csv snapshot
 python scripts/run_phase1.py --refresh   # re-download from Yahoo Finance
 python scripts/run_phase2.py    # volatility models on the last 1,000-day window
 python scripts/run_phase3.py    # rolling backtest (~1 min on 4 cores)
 python scripts/run_phase3b.py   # tail models: skew-t, GJR, EGARCH, FHS (~20 min; --skip-daily ~3 min)
+python scripts/run_phase3c.py   # conditional EVT (FHS-EVT) and DCC-GARCH (~10 min)
 python scripts/run_phase4.py    # stress tests and risk attribution
 python scripts/run_phase5.py    # walk-forward allocation backtest
 python scripts/run_phase6.py    # Basel traffic light (needs run_phase3 and run_phase3b outputs)
@@ -103,6 +104,10 @@ python scripts/make_figures.py  # static figures in reports/figures/
 - **Official VaR model** (`var_model` in config): FHS with a GJR-GARCH-t filter, 1,000-day
   window and residual pool, refit every 21 days with daily variance updates; GJR-skew-t (W=500)
   is the parametric alternative, GARCH-t (W=500) the previous model kept as benchmark.
+- **Phase 3c challengers**: conditional EVT (GPD on the FHS residual pool, 90% threshold) and
+  DCC-GARCH(1,1) with GJR-t marginals per asset. DCC-EVT (W=1000) has 39 violations at 99%
+  (expected 40.3) vs 47 for FHS-GJR and passes all tests; it is a monitored challenger, not the
+  official model (see `reports/phase3c_report.md`).
 - **Backtesting**: primary set-up is a 500-day rolling window, GARCH/EWMA-lambda refit every
   21 trading days with daily variance updates; sensitivity runs use daily refits and 250 / 1,000-day
   windows. All set-ups forecast the same 4,030 days. Tests at 5% (primary) and 1% significance.
