@@ -23,10 +23,30 @@ Expected 99% violations: 40.3.
 | GARCH(1,1)-Normal | 91 | 5.5e-12 | 0.217 | 1.14 | 6.4% |
 | **GARCH(1,1)-t (primary)** | **73** | 3.3e-06 | 0.054 | **1.01** | **0.4%** |
 
-- No model achieves correct 99% coverage; GARCH-t is the best conditional model and its ES
+- No Phase 3 model achieves correct 99% coverage; GARCH-t is the best conditional model and its ES
   matches realised tail losses. Historical simulation has fewer violations but they cluster.
 - GARCH-t over-violates at 95% (6.3%): a single symmetric t cannot fit both the shoulder and
-  the tail. The report recommends filtered historical simulation and a skewed-t as next steps.
+  the tail.
+
+**Phase 3b tail models** (same dates and set-up; full results in
+[reports/phase3b_report.md](reports/phase3b_report.md)):
+
+| Model | 95% viol. (exp 201.5) | 99% viol. (exp 40.3) | 99% Kupiec p | 99% CC p | 99% ES ratio |
+|---|---:|---:|---:|---:|---:|
+| GARCH(1,1)-skew-t | 215 | 60 | 0.004 | 0.0007 | 1.00 |
+| GJR-GARCH-t | 244 | 72 | 6.2e-06 | 1.5e-05 | 1.01 |
+| GJR-GARCH-skew-t | 205 | 53 | 0.055 | 0.018 | 0.99 |
+| EGARCH-t | 256 | 83 | 3.3e-09 | 7.7e-09 | 1.02 |
+| FHS, GARCH-t filter | 201 | 55 | 0.027 | 0.002 | 1.01 |
+| FHS, GJR-t filter | 208 | 53 | 0.055 | 0.018 | 1.00 |
+
+- The 99% shortfall of the parametric models is mostly **tail shape** (left skew), not volatility
+  dynamics: adding skewness cuts GARCH violations 73 -> 60, while adding leverage alone (GJR-t 72,
+  EGARCH-t 83) does not help.
+- GJR-skew-t and FHS-GJR are the only models not rejected by Kupiec at 5% on the primary set-up
+  and fix the 95% over-violation; with a 1,000-day window FHS-GJR passes Kupiec, independence and
+  conditional coverage at both 95% and 99%. Six candidates were tried, so these p-values carry a
+  multiple-testing caveat.
 - Stress: GFC -30.1% (-$301k), 2022 rate shock -26.8% (bonds fell with stocks), COVID -19.4%.
 - Attribution: equities are 70% of the capital and 87.5% of the 99% VaR.
 - Allocation overlay (risk parity + 10% vol target + cash): CAGR 9.9%, vol 8.2%, max DD -19.9%
@@ -56,6 +76,7 @@ allocation walk-forward.
 | 1 | Data pipeline, data quality checks, portfolio returns, Historical / Normal VaR & ES |
 | 2 | EWMA (MLE lambda), GARCH(1,1)-t vs Normal, Ledoit-Wolf shrinkage |
 | 3 | Rolling out-of-sample backtest (2009-12 to 2025-12), Kupiec, Christoffersen |
+| 3b | Tail-model extensions: skewed-t (Hansen), GJR-GARCH, EGARCH, filtered historical simulation |
 | 4 | Historical / hypothetical / conditional stress tests; Euler VaR & ES attribution |
 | 5 | Risk parity + volatility targeting with cash and threshold rebalancing; min-variance / min-CVaR benchmarks |
 | 6 | Streamlit dashboard, Basel traffic light, model validation report, CI |
@@ -63,11 +84,12 @@ allocation walk-forward.
 ## Quick start
 ```bash
 pip install -e ".[dev,dashboard]"
-pytest                          # 145 unit tests (offline)
+pytest                          # 164 unit tests (offline)
 python scripts/run_phase1.py    # uses data/raw/prices.csv snapshot
 python scripts/run_phase1.py --refresh   # re-download from Yahoo Finance
 python scripts/run_phase2.py    # volatility models on the last 1,000-day window
 python scripts/run_phase3.py    # rolling backtest (~1 min on 4 cores)
+python scripts/run_phase3b.py   # tail models: skew-t, GJR, EGARCH, FHS (~20 min; --skip-daily ~3 min)
 python scripts/run_phase4.py    # stress tests and risk attribution
 python scripts/run_phase5.py    # walk-forward allocation backtest
 python scripts/run_phase6.py    # Basel traffic light

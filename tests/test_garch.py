@@ -91,4 +91,4 @@ def test_rejects_short_or_bad_input():
     with pytest.raises(ValueError):
         fit_garch(np.r_[np.zeros(300), np.nan])
     with pytest.raises(ValueError):
-        fit_garch(np.zeros(300), dist="skewt")
+        fit_garch(np.zeros(300), dist="cauchy")
