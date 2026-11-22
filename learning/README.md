@@ -27,7 +27,7 @@ jupyter lab learning/
 ```
 
 - 不装 `ipywidgets` 也能跑完，只是没有滑块；改单元格里的数字再运行即可。
-- 仓库里保存的版本是"静态执行"的结果（`LEARN_STATIC=1`），所以在 GitHub 上滑块的位置显示的是一行提示。在自己的 Jupyter 里运行就会出现滑块。
+- 仓库里保存的版本是"静态执行"的结果（`LEARN_STATIC=1`）：滑块的位置换成了几组不同参数各跑一遍的结果，所以在 GitHub 上也能看到"调参数"的效果。在自己的 Jupyter 里运行就会出现真正的滑块。
 - 不需要联网：只读本地的 `data/raw/prices.csv` 和 `reports/` 里的文件，不重新跑回测，每本几秒钟就能跑完。
 
 `learn_utils.py` 是几本 notebook 共用的小工具（读数据、读回测结果、显示滑块），不包含任何新的建模。

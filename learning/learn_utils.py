@@ -65,10 +65,22 @@ def money(x: float) -> str:
     return f"-${-x:,.0f}" if x < 0 else f"${x:,.0f}"
 
 
-def play(fn, **controls):
-    """有 ipywidgets 就显示滑块；没有就提示直接改数字。滑块只在运行中的 Jupyter 里出现。"""
+def play(fn, examples=None, **controls):
+    """有 ipywidgets 就显示滑块；没有就提示直接改数字。滑块只在运行中的 Jupyter 里出现。
+
+    examples: 几组示例参数。静态版本（GitHub 预览、PDF）里会用它们各跑一遍，代替滑块。
+    """
     if os.environ.get("LEARN_STATIC") == "1":  # 批量执行 / 生成静态版本时不建滑块
-        print("（这里是滑块。在 Jupyter 里运行这个单元格就会出现；也可以直接改上面单元格里的数字。）")
+        print("（在 Jupyter 里这里是滑块。静态版本里换成下面几组参数各跑一遍。）")
+        for ex in examples or []:
+            print("\n▶ " + "，".join(f"{k} = {v}" for k, v in ex.items()))
+            res = fn(**ex)
+            if res is not None:  # 返回表格的函数：把表格显示出来
+                try:
+                    from IPython.display import display
+                    display(res)
+                except ImportError:
+                    print(res)
         return None
     try:
         from ipywidgets import interact
