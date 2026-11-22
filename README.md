@@ -62,6 +62,10 @@ Five tabs: risk overview (live VaR/ES for any weights), VaR backtest explorer, s
 (historical, custom hypothetical shocks, conditional shocks), Euler risk attribution, and the
 allocation walk-forward.
 
+## Learning notebooks (Chinese)
+
+[`learning/`](learning/) has five short interactive notebooks that explain the core ideas intuition-first, using this repo's data and code: VaR vs ES, EWMA/GARCH, GJR + FHS, Kupiec/Christoffersen backtesting, and why ES is subadditive. They reproduce the reported numbers (e.g. 73 vs 40.3 breaches for GARCH-t, 47 for FHS-GJR).
+
 ## Project phases
 | Phase | Scope |
 |---|---|
